@@ -356,14 +356,18 @@ DOCTEST_MSVC_SUPPRESS_WARNING(26444) // Avoid unnamed objects with custom constr
 // should probably take a look at https://github.com/scottt/debugbreak
 #ifdef DOCTEST_PLATFORM_MAC
 #define DOCTEST_BREAK_INTO_DEBUGGER() __asm__("int $3\n" : :)
+#elif defined(DOCTEST_PLATFORM_LINUX)
+#include <fstream>
+#include <sstream>
+#define DOCTEST_BREAK_INTO_DEBUGGER() ((void)0)
 #elif DOCTEST_MSVC
 #define DOCTEST_BREAK_INTO_DEBUGGER() __debugbreak()
 #elif defined(__MINGW32__)
 extern "C" __declspec(dllimport) void __stdcall DebugBreak();
 #define DOCTEST_BREAK_INTO_DEBUGGER() ::DebugBreak()
-#else // linux
+#else // others
 #define DOCTEST_BREAK_INTO_DEBUGGER() ((void)0)
-#endif // linux
+#endif // others
 
 // this is kept here for backwards compatibility since the config option was changed
 #ifdef DOCTEST_CONFIG_USE_IOSFWD
@@ -3893,6 +3897,23 @@ namespace detail {
         }
         // We're being debugged if the P_TRACED flag is set.
         return ((info.kp_proc.p_flag & P_TRACED) != 0);
+    }
+#elif defined(DOCTEST_PLATFORM_LINUX)
+    bool isDebuggerActive() {
+        std::ifstream status("/proc/self/status");
+        std::string line;
+
+        while(std::getline(status, line))
+        {
+            std::string token;
+            unsigned long value;
+            std::istringstream is(line);
+
+            if((is >> token >> value) && token == "TracerPid:")
+                return value != 0;
+        }
+
+        return false;
     }
 #elif DOCTEST_MSVC || defined(__MINGW32__)
     bool isDebuggerActive() { return ::IsDebuggerPresent() != 0; }
